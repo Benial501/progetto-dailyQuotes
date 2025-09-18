@@ -11,12 +11,37 @@ export default {
       preferiti: [],
       mostraSoloPreferiti: false,
       testoRicerca: '',
+      mostraFormNuovaCitazione: false,
+      nuovaCitazione: {
+        testo: '',
+        autore: '',
+      },
     }
   },
+  watch: {
+    preferiti: {
+      handler(nuoviPreferiti) {
+        localStorage.setItem('preferiti', JSON.stringify(nuoviPreferiti))
+      },
+      deep: true,
+    },
+  },
   mounted() {
+    this.caricaPreferiti()
     this.selezionaCitazioneCasuale()
   },
   methods: {
+    caricaPreferiti() {
+      const preferitiSalvati = localStorage.getItem('preferiti')
+      if (preferitiSalvati) {
+        try {
+          this.preferiti = JSON.parse(preferitiSalvati)
+        } catch (e) {
+          console.error('Errore nel caricamento dei preferiti:', e)
+          localStorage.removeItem('preferiti')
+        }
+      }
+    },
     selezionaCitazioneCasuale() {
       let numeroCasuale = Math.floor(Math.random() * this.citazioni.length)
       this.citazioneCorrente = this.citazioni[numeroCasuale]
@@ -94,20 +119,60 @@ export default {
       const regex = new RegExp(`(${ricerca})`, 'gi')
       return testo.replace(regex, '<mark class="highlight">$1</mark>')
     },
+    toggleFormNuovaCitazione() {
+      this.mostraFormNuovaCitazione = !this.mostraFormNuovaCitazione
+    },
+    salvaNuovaCitazione() {
+      if (this.nuovaCitazione.testo.trim() && this.nuovaCitazione.autore.trim()) {
+        // Aggiunge la nuova citazione solo all'array locale
+        this.citazioni.unshift({ ...this.nuovaCitazione })
+
+        // Resetta il form
+        this.nuovaCitazione.testo = ''
+        this.nuovaCitazione.autore = ''
+        this.mostraFormNuovaCitazione = false
+      } else {
+        alert("Per favore, compila sia il testo che l'autore della citazione.")
+      }
+    },
   },
 }
 </script>
 
 <template>
-  <div class="lettore-citazioni">
+    <div class="lettore-citazioni">
     <h2 class="titolo-oro">Citazione del Giorno</h2>
     <div v-if="citazioneCorrente" class="citazione-del-giorno">
       <p class="testo-citazione">"{{ citazioneCorrente.testo }}"</p>
       <p class="autore-citazione">- {{ citazioneCorrente.autore }}</p>
     </div>
-    <button @click="selezionaCitazioneCasuale" class="bottone-nuova-citazione">
-      mostra un altra citazione
-    </button>
+    <div class="contenitore-bottoni-principali">
+      <button @click="selezionaCitazioneCasuale" class="bottone-nuova-citazione">
+        Mostra un'altra citazione
+      </button>
+      <button @click="toggleFormNuovaCitazione" class="bottone-crea-citazione">
+        Crea Nuova Citazione
+      </button>
+    </div>
+
+    <!-- Form per nuova citazione -->
+    <div v-if="mostraFormNuovaCitazione" class="form-nuova-citazione">
+      <h3 class="titolo-oro">Aggiungi una nuova citazione</h3>
+      <input
+        v-model="nuovaCitazione.testo"
+        placeholder="Testo della citazione"
+        class="input-nuova-citazione"
+      />
+      <input
+        v-model="nuovaCitazione.autore"
+        placeholder="Autore della citazione"
+        class="input-nuova-citazione"
+      />
+      <div class="bottoni-form">
+        <button @click="salvaNuovaCitazione" class="bottone-salva">Salva</button>
+        <button @click="toggleFormNuovaCitazione" class="bottone-annulla">Annulla</button>
+      </div>
+    </div>
 
     <h3 class="titolo-oro">Tutte le Citazioni</h3>
     <div class="citazioni-paginate">
@@ -150,7 +215,6 @@ export default {
           :disabled="paginaCorrente === 1"
           class="bottone-paginazione"
         >
-          Precedente
         </button>
         <span class="info-pagina">Pagina {{ paginaCorrente }} di {{ calcolaNumeroPagine() }}</span>
         <button
@@ -185,15 +249,68 @@ export default {
   margin-bottom: 20px;
 }
 
-.bottone-nuova-citazione {
+.contenitore-bottoni-principali {
+  display: flex;
+  gap: 10px;
   margin-bottom: 20px;
+}
+
+.bottone-nuova-citazione,
+.bottone-crea-citazione {
   padding: 10px 20px;
   font-size: 16px;
   cursor: pointer;
-  background-color: #4caf50;
   color: white;
   border: none;
   border-radius: 4px;
+}
+
+.bottone-nuova-citazione {
+  background-color: #4caf50;
+}
+
+.bottone-crea-citazione {
+  background-color: #008cba;
+}
+
+.form-nuova-citazione {
+  background-color: #f9f9f9;
+  padding: 20px;
+  border-radius: 5px;
+  margin-bottom: 30px;
+  border: 1px solid #eee;
+}
+
+.input-nuova-citazione {
+  width: calc(100% - 24px);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.bottoni-form {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.bottoni-form button {
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+  border-radius: 4px;
+  color: white;
+}
+
+.bottone-salva {
+  background-color: #4caf50;
+}
+
+.bottone-annulla {
+  background-color: #f44336;
 }
 
 .citazioni-paginate {
@@ -311,5 +428,45 @@ export default {
 
 .highlight {
   background-color: yellow;
+}
+
+.form-nuova-citazione {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #f0f0f0;
+  border-radius: 5px;
+}
+
+.form-group {
+  margin-bottom: 10px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 8px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.bottone-salva {
+  padding: 10px 15px;
+  font-size: 14px;
+  cursor: pointer;
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+}
+
+.bottone-aggiungi {
+  margin-top: 20px;
+  padding: 10px 15px;
+  font-size: 14px;
+  cursor: pointer;
+  background-color: #ff9800;
+  color: white;
+  border: none;
+  border-radius: 4px;
 }
 </style>
