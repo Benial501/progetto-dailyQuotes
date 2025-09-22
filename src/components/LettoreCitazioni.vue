@@ -1,5 +1,5 @@
 <script>
-const API_BASE_URL = 'http://localhost:3000'; // Considera di spostare questo in un file di configurazione
+import { supabase } from '../data/supabase'
 
 export default {
   data() {
@@ -8,15 +8,15 @@ export default {
       citazioneCorrente: null,
       citazioniPerPagina: 5,
       paginaCorrente: 1,
-      preferiti: [],
-      mostraSoloPreferiti: false,
       testoRicerca: '',
       mostraFormNuovaCitazione: false,
+      mostraSoloPreferiti: false,
       nuovaCitazione: {
         testo: '',
         autore: '',
       },
       isLoading: true,
+      messaggioErrore: null,
     }
   },
   async created() {
@@ -25,33 +25,41 @@ export default {
   methods: {
     async inizializza() {
       this.isLoading = true
-      await Promise.all([this.caricaCitazioni(), this.caricaPreferiti()])
+      this.messaggioErrore = null
+      await Promise.all([this.caricaCitazioni()])
       this.selezionaCitazioneCasuale()
       this.isLoading = false
     },
+
     async caricaCitazioni() {
       try {
-        const response = await fetch(`${API_BASE_URL}/citazioni`)
-        if (!response.ok) throw new Error("Errore nel caricamento delle citazioni")
-        const data = await response.json()
-        this.citazioni = data.map(quote => ({
-          id: quote.id,
-          testo: quote.text,
-          autore: quote.Author
+        const { data, error } = await supabase
+          .from('quotes')
+          .select('*')
+
+        if (error) {
+          console.error('Errore Supabase:', error)
+          this.messaggioErrore = 'Errore nel caricamento delle citazioni.'
+          throw error
+        }
+
+        if (!data) {
+          this.messaggioErrore = 'Nessuna citazione trovata.'
+          return
+        }
+
+        // Mappa i dati con nomi in italiano
+        this.citazioni = data.map(c => ({
+          id: c.id,
+          testo: c.text,
+          autore: c.author,
+          preferita: c.is_favorite || false,
         }))
       } catch (error) {
-        console.error("Errore nel caricamento delle citazioni:", error)
+        console.error('Errore nel caricamento delle citazioni:', error)
       }
     },
-    async caricaPreferiti() {
-      try {
-        const response = await fetch(`${API_BASE_URL}/preferiti`)
-        if (!response.ok) throw new Error("Errore nel caricamento dei preferiti")
-        this.preferiti = await response.json()
-      } catch (error) {
-        console.error("Errore nel caricamento dei preferiti:", error)
-      }
-    },
+
     selezionaCitazioneCasuale() {
       if (this.citazioni.length > 0) {
         const numeroCasuale = Math.floor(Math.random() * this.citazioni.length)
@@ -60,233 +68,196 @@ export default {
         this.citazioneCorrente = null
       }
     },
+
     async salvaNuovaCitazione() {
       if (this.nuovaCitazione.testo.trim() && this.nuovaCitazione.autore.trim()) {
         try {
-          const response = await fetch(`${API_BASE_URL}/citazioni`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              text: this.nuovaCitazione.testo,
-              Author: this.nuovaCitazione.autore
-            }),
-          })
-          if (!response.ok) throw new Error("Errore nel salvataggio della citazione")
+          const { error } = await supabase.from('quotes').insert([{
+            text: this.nuovaCitazione.testo,
+            author: this.nuovaCitazione.autore,
+            is_favorite: false
+          }])
+
+          if (error) {
+            this.messaggioErrore = 'Errore nel salvataggio della citazione.'
+            throw error
+          }
+
           await this.caricaCitazioni()
           this.nuovaCitazione = { testo: '', autore: '' }
           this.mostraFormNuovaCitazione = false
           this.selezionaCitazioneCasuale()
         } catch (error) {
-          console.error("Errore nel salvataggio della nuova citazione:", error)
+          console.error('Errore nel salvataggio della citazione:', error)
         }
       } else {
-        alert("Per favore, compila sia il testo che l'autore della citazione.")
+        alert('Per favore, compila sia il testo che l\'autore della citazione.')
       }
     },
+
     async rimuoviCitazione(citazione) {
       try {
-        const response = await fetch(`${API_BASE_URL}/citazioni/${citazione.id}`, {
-          method: 'DELETE',
-        })
-        if (!response.ok) throw new Error("Errore nella rimozione della citazione")
+        const { error } = await supabase.from('quotes').delete().eq('id', citazione.id)
+        if (error) {
+          this.messaggioErrore = 'Errore nella rimozione della citazione.'
+          throw error
+        }
+
         await this.caricaCitazioni()
         if (this.citazioneCorrente && this.citazioneCorrente.id === citazione.id) {
           this.selezionaCitazioneCasuale()
         }
-        await this.rimuoviDaiPreferiti(citazione)
       } catch (error) {
-        console.error("Errore nella rimozione della citazione:", error)
+        console.error('Errore nella rimozione della citazione:', error)
       }
     },
-    async aggiungiAiPreferiti(citazione) {
-      if (!this.isPreferita(citazione)) {
-        try {
-          const response = await fetch(`${API_BASE_URL}/preferiti`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ citazione_id: citazione.id }),
-          })
-          if (!response.ok) throw new Error("Errore nell'aggiunta ai preferiti")
-          await this.caricaPreferiti()
-        } catch (error) {
-          console.error("Errore nell'aggiunta ai preferiti:", error)
-        }
-      }
-    },
-    async rimuoviDaiPreferiti(citazione) {
+
+    async togglePreferita(citazione) {
       try {
-        const response = await fetch(`${API_BASE_URL}/preferiti/${citazione.id}`, {
-          method: 'DELETE',
-        })
-        if (!response.ok) throw new Error("Errore nella rimozione dai preferiti")
-        await this.caricaPreferiti()
+        const { error } = await supabase
+          .from('quotes')
+          .update({ is_favorite: !citazione.preferita })
+          .eq('id', citazione.id)
+
+        if (error) throw error
+
+        citazione.preferita = !citazione.preferita
       } catch (error) {
-        console.error("Errore nella rimozione dai preferiti:", error)
+        console.error('Errore nel toggle dei preferiti:', error)
+        this.messaggioErrore = 'Impossibile aggiornare i preferiti.'
       }
     },
+
+    toggleFormNuovaCitazione() {
+      this.mostraFormNuovaCitazione = !this.mostraFormNuovaCitazione
+    },
+
     toggleMostraPreferiti() {
       this.mostraSoloPreferiti = !this.mostraSoloPreferiti
       this.paginaCorrente = 1
     },
-    async citazionePreferita(citazione) {
-      if (this.isPreferita(citazione)) {
-        await this.rimuoviDaiPreferiti(citazione)
-      } else {
-        await this.aggiungiAiPreferiti(citazione)
-      }
-    },
+
     filtraCitazioni() {
-      let risultato = this.mostraSoloPreferiti 
-        ? this.citazioni.filter(c => this.preferiti.some(p => p.citazione_id === c.id))
-        : this.citazioni
+      let risultato = this.citazioni
 
       if (this.testoRicerca) {
         const ricerca = this.testoRicerca.toLowerCase().trim()
-        risultato = risultato.filter((citazione) => {
-          return citazione.testo.toLowerCase().includes(ricerca) ||
-                 citazione.autore.toLowerCase().includes(ricerca)
-        })
+        risultato = risultato.filter(c => c.testo.toLowerCase().includes(ricerca) ||
+                                          c.autore.toLowerCase().includes(ricerca))
+      }
+
+      if (this.mostraSoloPreferiti) {
+        risultato = risultato.filter(c => c.preferita)
       }
 
       return risultato
     },
+
     calcolaCitazioniPagina() {
-      let citazioniFiltrate = this.filtraCitazioni()
-      let inizio = (this.paginaCorrente - 1) * this.citazioniPerPagina
-      let fine = inizio + this.citazioniPerPagina
+      const citazioniFiltrate = this.filtraCitazioni()
+      const inizio = (this.paginaCorrente - 1) * this.citazioniPerPagina
+      const fine = inizio + this.citazioniPerPagina
       return citazioniFiltrate.slice(inizio, fine)
     },
+
     calcolaNumeroPagine() {
       return Math.ceil(this.filtraCitazioni().length / this.citazioniPerPagina)
     },
-    isPreferita(citazione) {
-      return this.preferiti.some((pref) => pref.citazione_id === citazione.id)
-    },
+
     evidenziaTesto(testo) {
-      if (!this.testoRicerca || !this.testoRicerca.trim()) {
-        return testo
-      }
-      const ricerca = this.testoRicerca.trim()
-      const regex = new RegExp(`(${ricerca})`, 'gi')
+      if (!this.testoRicerca || !this.testoRicerca.trim()) return testo
+      const regex = new RegExp(`(${this.testoRicerca.trim()})`, 'gi')
       return testo.replace(regex, '<mark class="highlight">$1</mark>')
     },
-    toggleFormNuovaCitazione() {
-      this.mostraFormNuovaCitazione = !this.mostraFormNuovaCitazione
-    },
+
     paginaSuccessiva() {
-      if (this.paginaCorrente < this.calcolaNumeroPagine()) {
-        this.paginaCorrente++
-      }
+      if (this.paginaCorrente < this.calcolaNumeroPagine()) this.paginaCorrente++
     },
+
     paginaPrecedente() {
-      if (this.paginaCorrente > 1) {
-        this.paginaCorrente--
-      }
-    },
-  },
+      if (this.paginaCorrente > 1) this.paginaCorrente--
+    }
+  }
 }
 </script>
 
 <template>
+  <div v-if="messaggioErrore" class="messaggio-errore">
+    {{ messaggioErrore }}
+  </div>
+
   <div class="lettore-citazioni">
-    <div v-if="isLoading" class="loading">Caricamento in corso...</div>
-    <div v-else class="contenuto-principale">
-      <h2 class="titolo-oro">Citazione del Giorno</h2>
-      <div v-if="citazioneCorrente" class="citazione-del-giorno">
-        <p class="testo-citazione">"{{ citazioneCorrente.testo }}"</p>
-        <p class="autore-citazione">- {{ citazioneCorrente.autore }}</p>
+    <h1 class="titolo-oro">Lettore di Citazioni</h1>
+
+    <!-- Loading -->
+    <div v-if="isLoading" class="loading">
+      Caricamento citazioni...
+    </div>
+
+    <div v-else>
+      <!-- Citazione del giorno -->
+      <div class="citazione-del-giorno">
+        <p class="testo-citazione" v-html="citazioneCorrente ? evidenziaTesto(citazioneCorrente.testo) : ''"></p>
+        <p class="autore-citazione">{{ citazioneCorrente ? citazioneCorrente.autore : '' }}</p>
       </div>
-      <div v-else class="citazione-del-giorno">
-        <p>Nessuna citazione disponibile.</p>
-      </div>
+
+      <!-- Bottoni principali -->
       <div class="contenitore-bottoni-principali">
-        <button @click="selezionaCitazioneCasuale" class="bottone-principale">
-          Mostra un'altra citazione
+        <button class="bottone-principale" @click="selezionaCitazioneCasuale">Citazione Casuale</button>
+        <button class="bottone-principale" @click="toggleFormNuovaCitazione">
+          {{ mostraFormNuovaCitazione ? 'Nascondi Form' : 'Aggiungi Citazione' }}
         </button>
-        <button @click="toggleFormNuovaCitazione" class="bottone-principale">
-          Crea Nuova Citazione
+        <button class="bottone-principale" @click="toggleMostraPreferiti">
+          {{ mostraSoloPreferiti ? 'Mostra Tutte' : 'Mostra Preferiti' }}
         </button>
       </div>
 
+      <!-- Form nuova citazione -->
       <div v-if="mostraFormNuovaCitazione" class="form-nuova-citazione">
-        <h3 class="titolo-oro">Aggiungi una nuova citazione</h3>
-        <input
-          v-model="nuovaCitazione.testo"
-          placeholder="Testo della citazione"
-          class="input-nuova-citazione"
-        />
-        <input
-          v-model="nuovaCitazione.autore"
-          placeholder="Autore della citazione"
-          class="input-nuova-citazione"
-        />
-        <div class="bottoni-form">
-          <button @click="salvaNuovaCitazione" class="bottone-principale">Salva</button>
-          <button @click="toggleFormNuovaCitazione" class="bottone-secondario">Annulla</button>
-        </div>
+        <h3>Aggiungi una Nuova Citazione</h3>
+        <input v-model="nuovaCitazione.testo" class="input-nuova-citazione" placeholder="Testo della citazione">
+        <input v-model="nuovaCitazione.autore" class="input-nuova-citazione" placeholder="Autore della citazione">
+        <button class="bottone-principale" @click="salvaNuovaCitazione">Salva Citazione</button>
       </div>
 
-      <h3 class="titolo-oro">Tutte le Citazioni</h3>
-      <div class="citazioni-paginate">
-        <div class="controlli-superiori">
-          <input
-            v-model="testoRicerca"
-            @input="paginaCorrente = 1"
-            placeholder="Cerca citazioni o autori"
-            class="barra-ricerca"
-          />
-          <button @click="toggleMostraPreferiti" class="bottone-principale">
-            {{ mostraSoloPreferiti ? 'Mostra tutte' : 'Mostra preferiti' }}
-          </button>
-        </div>
+      <!-- Ricerca -->
+      <div>
+        <input v-model="testoRicerca" placeholder="Cerca citazioni..." class="input-nuova-citazione">
+      </div>
 
-        <ul class="elenco-citazioni">
-          <li
-            v-for="citazione in calcolaCitazioniPagina()"
-            :key="citazione.id"
-            class="citazione-item"
-          >
-            <div class="contenuto-citazione">
-              <p
-                class="testo-citazione"
-                v-html="'&quot;' + evidenziaTesto(citazione.testo) + '&quot;'"
-              ></p>
-              <p class="autore-citazione" v-html="'- ' + evidenziaTesto(citazione.autore)"></p>
-            </div>
-            <div class="azioni-citazione">
-              <button @click="citazionePreferita(citazione)" class="bottone-preferito">
-                {{ isPreferita(citazione) ? '⭐' : '☆' }}
-              </button>
-              <button @click="rimuoviCitazione(citazione)" class="bottone-rimuovi">
-                Rimuovi
-              </button>
-            </div>
-          </li>
-        </ul>
+      <!-- Lista citazioni -->
+      <ul class="elenco-citazioni">
+        <li v-for="citazione in calcolaCitazioniPagina()" :key="citazione.id" class="citazione-item">
+          <div class="citazione-content">
+            <p class="playfair-display" v-html="evidenziaTesto(citazione.testo)"></p>
+            <p class="citazione-autore"> - {{ citazione.autore }}</p>
+          </div>
+          <button class="bottone-secondario" @click="rimuoviCitazione(citazione)">
+            rimuovi
+          </button>
+          <button class="bottone-principale" @click="togglePreferita(citazione)">
+            <span v-if="citazione.preferita">❤️</span>
+            <span v-else>🤍</span>
+          </button>
+        </li>
+      </ul>
 
-        <div class="contenitore-paginazione">
-          <button @click="paginaPrecedente" :disabled="paginaCorrente === 1" class="bottone-pagina">
-            Pagina Precedente
-          </button>
-          <span class="info-pagina">
-            Pagina {{ paginaCorrente }} di {{ calcolaNumeroPagine() }}
-          </span>
-          <button @click="paginaSuccessiva" :disabled="paginaCorrente === calcolaNumeroPagine()" class="bottone-pagina">
-            Pagina Successiva
-          </button>
-        </div>
+      <!-- Paginazione -->
+      <div class="paginazione" v-if="calcolaNumeroPagine() > 1">
+        <button class="bottone-pagina" @click="paginaPrecedente" :disabled="paginaCorrente === 1">Precedente</button>
+        <span>Pagina {{ paginaCorrente }} di {{ calcolaNumeroPagine() }}</span>
+        <button class="bottone-pagina" @click="paginaSuccessiva" :disabled="paginaCorrente === calcolaNumeroPagine()">Successiva</button>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+
 .lettore-citazioni {
-  max-width: 800px;
+  max-width: 700px;
   margin: 0 auto;
   padding: 20px;
   font-family: Arial, sans-serif;
@@ -294,7 +265,7 @@ export default {
 
 .loading {
   text-align: center;
-  font-size: 1.2em;
+  font-size: 1.4em;
   margin-top: 20px;
 }
 
@@ -312,9 +283,15 @@ export default {
 
 .testo-citazione {
   font-style: italic;
-  font-size: 1.2em;
+  font-size: 1.4em;
 }
 
+.playfair-display {
+  font-family: "Playfair Display", serif;
+  font-optical-sizing: auto;
+  font-weight: 1.3em;
+  font-style: normal;
+}
 .autore-citazione {
   text-align: right;
   font-weight: bold;
@@ -326,7 +303,9 @@ export default {
   margin-bottom: 20px;
 }
 
-.bottone-principale, .bottone-secondario, .bottone-pagina {
+.bottone-principale,
+.bottone-secondario,
+.bottone-pagina {
   padding: 10px 15px;
   border: none;
   border-radius: 5px;
@@ -337,12 +316,21 @@ export default {
 .bottone-principale {
   background-color: #4CAF50;
   color: white;
-  white-space: nowrap;
+}
+.bottone-principale:hover {
+  background-color: #467f49;
 }
 
 .bottone-secondario {
   background-color: #f44336;
   color: white;
+  margin-left: 20px;
+  margin-right: 10px;
+  
+}
+
+.bottone-secondario:hover {
+  background-color: #c25353;
 }
 
 .form-nuova-citazione {
@@ -358,22 +346,6 @@ export default {
   margin-bottom: 10px;
   border: 1px solid #ddd;
   border-radius: 4px;
-}
-
-.controlli-superiori {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  gap: 10px;
-}
-
-.barra-ricerca {
-  flex-grow: 1;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1em;
 }
 
 .elenco-citazioni {
@@ -392,30 +364,44 @@ export default {
   align-items: center;
 }
 
-.azioni-citazione {
-  display: flex;
-  gap: 10px;
+.citazione-content {
+  flex-grow: 1;
+  text-align: left;
 }
 
-.bottone-preferito, .bottone-rimuovi {
-  background: none;
-  border: none;
-  cursor: pointer;
+.citazione-testo {
   font-size: 1.2em;
+  margin-bottom: 0.5em;
+  font-style: italic;
 }
 
-.contenitore-paginazione {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 20px;
-}
-
-.info-pagina {
-  font-size: 0.9em;
+.citazione-autore {
+  font-size: 1.1em;
+  font-weight: bold;
+  text-align: right;
+  color: #555;
 }
 
 .highlight {
   background-color: yellow;
+}
+
+.messaggio-errore {
+  color: red;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.bottone-rimuovi {
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.2em 0.5em;
+  border-radius: 5px;
+  transition: background-color 0.3s;
+}
+
+.bottone-rimuovi:hover {
+  background-color: #ffebee;
 }
 </style>
