@@ -4,7 +4,7 @@ import citazioniJson from '@/data/quotes.json'
 export default {
   data() {
     return {
-      citazioni: citazioniJson.citazioni,
+      citazioni: [],
       citazioneCorrente: null,
       citazioniPerPagina: 5,
       paginaCorrente: 1,
@@ -19,6 +19,12 @@ export default {
     }
   },
   watch: {
+    citazioni: {
+      handler(nuoveCitazioni) {
+        localStorage.setItem('citazioni', JSON.stringify(nuoveCitazioni))
+      },
+      deep: true,
+    },
     preferiti: {
       handler(nuoviPreferiti) {
         localStorage.setItem('preferiti', JSON.stringify(nuoviPreferiti))
@@ -26,11 +32,27 @@ export default {
       deep: true,
     },
   },
-  mounted() {
+  created() {
+    this.caricaCitazioni()
     this.caricaPreferiti()
+  },
+  mounted() {
     this.selezionaCitazioneCasuale()
   },
   methods: {
+    caricaCitazioni() {
+      const citazioniSalvate = localStorage.getItem('citazioni')
+      if (citazioniSalvate) {
+        try {
+          this.citazioni = JSON.parse(citazioniSalvate)
+        } catch (e) {
+          console.error('Errore nel caricamento delle citazioni:', e)
+          this.citazioni = citazioniJson.citazioni
+        }
+      } else {
+        this.citazioni = citazioniJson.citazioni
+      }
+    },
     caricaPreferiti() {
       const preferitiSalvati = localStorage.getItem('preferiti')
       if (preferitiSalvati) {
@@ -43,8 +65,12 @@ export default {
       }
     },
     selezionaCitazioneCasuale() {
-      let numeroCasuale = Math.floor(Math.random() * this.citazioni.length)
-      this.citazioneCorrente = this.citazioni[numeroCasuale]
+      if (this.citazioni.length > 0) {
+        const numeroCasuale = Math.floor(Math.random() * this.citazioni.length)
+        this.citazioneCorrente = this.citazioni[numeroCasuale]
+      } else {
+        this.citazioneCorrente = null
+      }
     },
     paginaSuccessiva() {
       if (this.paginaCorrente < this.calcolaNumeroPagine()) {
@@ -124,15 +150,34 @@ export default {
     },
     salvaNuovaCitazione() {
       if (this.nuovaCitazione.testo.trim() && this.nuovaCitazione.autore.trim()) {
-        // Aggiunge la nuova citazione solo all'array locale
         this.citazioni.unshift({ ...this.nuovaCitazione })
-
-        // Resetta il form
         this.nuovaCitazione.testo = ''
         this.nuovaCitazione.autore = ''
         this.mostraFormNuovaCitazione = false
+        this.selezionaCitazioneCasuale()
       } else {
         alert("Per favore, compila sia il testo che l'autore della citazione.")
+      }
+    },
+    rimuoviCitazione(citazione) {
+      const index = this.citazioni.findIndex(c => c.testo === citazione.testo && c.autore === citazione.autore);
+      if (index !== -1) {
+        this.citazioni.splice(index, 1);
+        
+        // Rimuovi anche dai preferiti se presente
+        const prefIndex = this.preferiti.findIndex(c => c.testo === citazione.testo && c.autore === citazione.autore);
+        if (prefIndex !== -1) {
+          this.preferiti.splice(prefIndex, 1);
+        }
+
+        // Se la citazione rimossa era quella corrente, seleziona una nuova citazione casuale
+        if (this.citazioneCorrente && this.citazioneCorrente.testo === citazione.testo && this.citazioneCorrente.autore === citazione.autore) {
+          this.selezionaCitazioneCasuale();
+        }
+
+        // Aggiorna il localStorage
+        localStorage.setItem('citazioni', JSON.stringify(this.citazioni));
+        localStorage.setItem('preferiti', JSON.stringify(this.preferiti));
       }
     },
   },
@@ -145,6 +190,9 @@ export default {
     <div v-if="citazioneCorrente" class="citazione-del-giorno">
       <p class="testo-citazione">"{{ citazioneCorrente.testo }}"</p>
       <p class="autore-citazione">- {{ citazioneCorrente.autore }}</p>
+    </div>
+    <div v-else class="citazione-del-giorno">
+      <p>Nessuna citazione disponibile.</p>
     </div>
     <div class="contenitore-bottoni-principali">
       <button @click="selezionaCitazioneCasuale" class="bottone-nuova-citazione">
@@ -206,25 +254,30 @@ export default {
             <span v-if="isPreferita(citazione)">⭐</span>
             <span v-else>☆</span>
           </button>
+          <button @click="rimuoviCitazione(citazione)" class="bottone-rimuovi">
+            🗑️
+          </button>
         </li>
       </ul>
 
-      <div class="controlli-paginazione">
-        <button
-          @click="paginaPrecedente"
-          :disabled="paginaCorrente === 1"
-          class="bottone-paginazione"
-        >
-        </button>
-        <span class="info-pagina">Pagina {{ paginaCorrente }} di {{ calcolaNumeroPagine() }}</span>
-        <button
-          @click="paginaSuccessiva"
-          :disabled="paginaCorrente === calcolaNumeroPagine() || calcolaNumeroPagine() === 0"
-          class="bottone-paginazione"
-        >
-          Successiva
-        </button>
-      </div>
+     
+  <div class="controlli-paginazione">
+    <button
+      @click="paginaPrecedente"
+      :disabled="paginaCorrente === 1"
+      class="bottone-paginazione"
+    >
+      Precedente
+    </button>
+    <span class="info-pagina">Pagina {{ paginaCorrente }} di {{ calcolaNumeroPagine() }}</span>
+    <button
+      @click="paginaSuccessiva"
+      :disabled="paginaCorrente === calcolaNumeroPagine() || calcolaNumeroPagine() === 0"
+      class="bottone-paginazione"
+    >
+      Successiva
+    </button>
+  </div>
     </div>
   </div>
 </template>
@@ -392,6 +445,21 @@ export default {
 }
 
 .bottone-preferito:hover {
+  transform: scale(1.2);
+}
+
+.bottone-rimuovi {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.bottone-rimuovi:hover {
   transform: scale(1.2);
 }
 
