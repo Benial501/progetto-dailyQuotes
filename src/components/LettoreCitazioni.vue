@@ -177,6 +177,8 @@ export default {
   }
 }
 </script>
+
+
 <template>
   <div class="app-container">
     <h1 class="titolo">Lettore di Citazioni</h1>
@@ -202,11 +204,13 @@ export default {
     </div>
 
     <!-- Form nuova citazione -->
-    <form v-if="mostraFormNuovaCitazione" @submit.prevent class="form-nuova-citazione">
-      <input v-model="nuovaCitazione.testo" placeholder="Testo" />
-      <input v-model="nuovaCitazione.autore" placeholder="Autore" />
-      <button type="button" @click="salvaNuovaCitazione">Salva</button>
-    </form>
+ <!-- Form nuova citazione -->
+<form v-if="mostraFormNuovaCitazione" @submit.prevent class="form-nuova-citazione">
+  <input v-model="nuovaCitazione.testo" placeholder="Testo della citazione" class="input-form" />
+  <input v-model="nuovaCitazione.autore" placeholder="Autore" class="input-form" />
+  <button type="button" class="btn-salva" @click="salvaNuovaCitazione">💾 Salva Citazione</button>
+</form>
+
 
     <!-- Ricerca -->
     <input v-model="testoRicerca" placeholder="Cerca autore o citazione..." class="input-ricerca" />
@@ -241,116 +245,113 @@ export default {
 
 <style scoped>
 
-
-
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
-.app-container {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
   font-family: 'Playfair Display', serif;
 }
 
+/* CONTAINER PRINCIPALE */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 2rem;
+  height: 100vh;
+  width: 100vw;
+  box-sizing: border-box;
+  text-align: center;
+  overflow: hidden; /* niente scroll globale */
+}
+
+/* TITOLO */
 .titolo {
-  text-align: center;
   color: #FFD700;
-  font-size: 2em;
-  margin-bottom: 20px;
+  font-size: clamp(2rem, 5vw, 4rem);
+  margin-bottom: 1.5rem;
 }
 
-.messaggio-errore {
-  color: red;
-  text-align: center;
-  margin-bottom: 15px;
-  font-weight: bold;
-}
-
+/* CITAZIONE DEL GIORNO */
 .citazione-del-giorno {
   background-color: #f0f0f0;
-  padding: 25px;
-  border-radius: 10px;
-  margin-bottom: 25px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  padding: clamp(1.5rem, 3vw, 3rem);
+  border-radius: 1rem;
+  width: 80vw;       
+  max-height: 25vh;  /* compatta */
+  overflow: hidden;
+  box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,0.2);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  margin-bottom: 1.5rem;
 }
 
 .testo-citazione {
   font-style: italic;
-  font-size: 1.2em;
+  font-size: clamp(1.4rem, 2.5vw, 2rem);
   color: #000;
-  margin-bottom: 10px;
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
 }
 
 .autore-citazione {
-  text-align: right;
   font-weight: bold;
+  font-size: clamp(0.9rem, 2vw, 1.2rem);
   color: #367fa9;
+  margin-top: 0.5rem;
 }
 
+/* BOTTONI PRINCIPALI */
 .bottoni {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
-  gap: 10px;
-  margin-bottom: 20px;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  width: 90vw;
 }
 
 .bottoni button {
-  padding: 10px 20px;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
   border: none;
-  border-radius: 6px;
-  cursor: pointer;
   background-color: #4CAF50;
   color: white;
-  font-size: 1em;
-  transition: background-color 0.2s;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: 0.2s all;
 }
 
 .bottoni button:hover {
   background-color: #35923a;
+  transform: scale(1.05);
 }
 
-.form-nuova-citazione {
-  background-color: #f9f9f9;
-  padding: 20px;
-  border-radius: 10px;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-}
-
-.form-nuova-citazione input {
-  width: 100%;
-  margin-bottom: 12px;
-  padding: 10px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  font-size: 1em;
-  box-sizing: border-box;
-}
-
-.form-nuova-citazione button {
-  padding: 10px 15px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  background-color: #008CBA;
-  color: white;
-  font-size: 1em;
-}
-
+/* RICERCA */
 .input-ricerca {
   width: 100%;
-  padding: 10px;
-  border-radius: 6px;
+  max-width: 600px;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
   border: 1px solid #ccc;
-  margin-bottom: 20px;
-  font-size: 1em;
+  margin-bottom: 1rem;
+  font-size: 1rem;
   box-sizing: border-box;
 }
 
+/* LISTA CITAZIONI */
 .elenco-citazioni {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  width: 80vw;
+  max-height: 50vh; 
+  overflow-y: auto;
 }
 
 .citazione-item {
@@ -358,19 +359,20 @@ export default {
   justify-content: space-between;
   align-items: center;
   border: 1px solid #ddd;
-  padding: 15px;
-  border-radius: 10px;
-  margin-bottom: 12px;
-  background-color: #ffffff;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  padding: 0.8rem;
+  border-radius: 0.75rem;
+  background-color: #fff;
+  box-shadow: 0 0.125rem 0.5rem rgba(0,0,0,0.05);
+  font-size: 0.95rem;
 }
 
+/* AZIONI CITAZIONI */
 .azioni button {
-  margin-left: 8px;
-  cursor: pointer;
+  margin-left: 0.5rem;
   border: none;
   background: none;
-  font-size: 1.2em;
+  font-size: 1.25rem;
+  cursor: pointer;
   transition: transform 0.1s;
 }
 
@@ -378,23 +380,25 @@ export default {
   transform: scale(1.2);
 }
 
+/* PAGINAZIONE */
 .paginazione {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 15px;
-  margin-top: 25px;
+  gap: 0.8rem;
+  width: 90vw;
+  margin-top: 1rem;
 }
 
 .paginazione button {
-  padding: 8px 12px;
-  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
   border: none;
   background-color: #4CAF50;
   color: white;
   cursor: pointer;
-  font-size: 1em;
-  transition: background-color 0.2s;
+  font-size: 1rem;
+  transition: 0.2s all;
 }
 
 .paginazione button:disabled {
@@ -402,15 +406,79 @@ export default {
   cursor: not-allowed;
 }
 
-.paginazione span {
-  font-weight: bold;
-  font-size: 1em;
-  color: #ddd;
+/* FORM NUOVA CITAZIONE */
+.form-nuova-citazione {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fefefe;
+  padding: 18px;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  margin-bottom: 15px;
+  transition: transform 0.2s ease;
 }
 
+.form-nuova-citazione:hover {
+  transform: translateY(-2px);
+}
+
+.input-form {
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 1em;
+  width: 100%;
+  transition: border-color 0.2s;
+}
+
+.input-form:focus {
+  border-color: #4CAF50;
+  outline: none;
+}
+
+.btn-salva {
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  background-color: #4CAF50;
+  color: white;
+  font-size: 1em;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.btn-salva:hover {
+  background-color: #45a049;
+  transform: translateY(-2px);
+}
+
+/* HIGHLIGHT */
 .highlight {
   background-color: yellow;
   font-weight: bold;
+}
+
+/* RESPONSIVE PICCOLI SCHERMI */
+@media(max-width: 1024px){
+  .citazione-del-giorno { width: 90vw; max-height: 25vh; }
+  .elenco-citazioni { width: 90vw; max-height: 45vh; }
+}
+
+/* BOTTONI PICCOLI E BELLI SU MOBILE */
+@media(max-width: 768px){
+  .bottoni {
+    flex-direction: column;
+    gap: 0.6rem;
+    width: 70%;
+  }
+
+  .bottoni button {
+    padding: 0.45rem 0.9rem;
+    font-size: 0.9rem;
+    width: 100%;
+    box-sizing: border-box;
+  }
 }
 
 
