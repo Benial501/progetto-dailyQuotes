@@ -17,11 +17,30 @@ export default {
       },
       isLoading: true,
       messaggioErrore: null,
+      notifica: null // 🔔 per messaggi realtime
     }
   },
 
   async created() {
     await this.inizializza()
+
+    // === SUBSCRIBE REALTIME SUPABASE ===
+    supabase
+      .channel('citazioni-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'quotes' },
+        payload => {
+          let msg = ''
+          if (payload.eventType === 'INSERT') msg = 'Nuova citazione aggiunta!'
+          if (payload.eventType === 'UPDATE') msg = 'Citazione aggiornata!'
+          if (payload.eventType === 'DELETE') msg = 'Citazione rimossa!'
+
+          if (msg) this.mostraNotifica(msg)
+          this.caricaCitazioni() // aggiorna lista senza refresh
+        }
+      )
+      .subscribe()
   },
 
   methods: {
@@ -34,9 +53,13 @@ export default {
       this.isLoading = false
     },
 
+    // === CARICA CITAZIONI CON ORDINE STABILE ===
     async caricaCitazioni() {
       try {
-        const { data, error } = await supabase.from('quotes').select('*')
+        const { data, error } = await supabase
+          .from('quotes')
+          .select('*')
+          .order('id', { ascending: true }) // 👈 ordine fisso
         if (error) throw error
 
         if (!data || data.length === 0) {
@@ -107,6 +130,7 @@ export default {
       }
     },
 
+    // === TOGGLE PREFERITI SENZA RIORDINARE ===
     async togglePreferita(citazione) {
       try {
         const nuovoValore = !citazione.preferita
@@ -117,6 +141,10 @@ export default {
 
         if (error) throw error
         citazione.preferita = nuovoValore
+
+        // Mostra notifica realtime
+        const msg = nuovoValore ? 'Citazione aggiunta ai preferiti!' : 'Citazione rimossa dai preferiti!'
+        this.mostraNotifica(msg)
       } catch (error) {
         console.error('Errore toggle preferiti:', error)
         this.messaggioErrore = 'Impossibile aggiornare i preferiti.'
@@ -173,6 +201,12 @@ export default {
       if (!this.testoRicerca.trim()) return testo
       const regex = new RegExp(`(${this.testoRicerca.trim()})`, 'gi')
       return testo.replace(regex, '<mark class="highlight">$1</mark>')
+    },
+
+    // 🔔 MOSTRA NOTIFICA
+    mostraNotifica(msg) {
+      this.notifica = msg
+      setTimeout(() => { this.notifica = null }, 3000)
     }
   }
 }
@@ -182,6 +216,9 @@ export default {
 <template>
   <div class="app-container">
     <h1 class="titolo">Lettore di Citazioni</h1>
+
+    <!-- NOTIFICA REALTIME -->
+    <div v-if="notifica" class="notifica-realtime">{{ notifica }}</div>
 
     <!-- Messaggi di errore -->
     <div v-if="messaggioErrore" class="messaggio-errore">{{ messaggioErrore }}</div>
@@ -204,13 +241,11 @@ export default {
     </div>
 
     <!-- Form nuova citazione -->
- <!-- Form nuova citazione -->
-<form v-if="mostraFormNuovaCitazione" @submit.prevent class="form-nuova-citazione">
-  <input v-model="nuovaCitazione.testo" placeholder="Testo della citazione" class="input-form" />
-  <input v-model="nuovaCitazione.autore" placeholder="Autore" class="input-form" />
-  <button type="button" class="btn-salva" @click="salvaNuovaCitazione">💾 Salva Citazione</button>
-</form>
-
+    <form v-if="mostraFormNuovaCitazione" @submit.prevent class="form-nuova-citazione">
+      <input v-model="nuovaCitazione.testo" placeholder="Testo della citazione" class="input-form" />
+      <input v-model="nuovaCitazione.autore" placeholder="Autore" class="input-form" />
+      <button type="button" class="btn-salva" @click="salvaNuovaCitazione">💾 Salva Citazione</button>
+    </form>
 
     <!-- Ricerca -->
     <input v-model="testoRicerca" placeholder="Cerca autore o citazione..." class="input-ricerca" />
@@ -242,9 +277,7 @@ export default {
   </div>
 </template>
 
-
 <style scoped>
-
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
 html, body {
@@ -255,34 +288,46 @@ html, body {
   font-family: 'Playfair Display', serif;
 }
 
-/* CONTAINER PRINCIPALE */
 .app-container {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
   padding: 2rem;
   height: 100vh;
-  width: 100vw;
+  width: 80vw;
   box-sizing: border-box;
   text-align: center;
-  overflow: hidden; /* niente scroll globale */
+  overflow: hidden;
 }
 
-/* TITOLO */
 .titolo {
   color: #FFD700;
   font-size: clamp(2rem, 5vw, 4rem);
   margin-bottom: 1.5rem;
 }
 
-/* CITAZIONE DEL GIORNO */
+/* 🔔 NOTIFICA REALTIME */
+.notifica-realtime {
+
+  color: rgb(255, 6, 6);
+  padding: 0.8rem 1.2rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  animation: fadeInOut 3s forwards;
+}
+@keyframes fadeInOut {
+  0% {opacity: 0; transform: translateY(-10px);}
+  10% {opacity: 1; transform: translateY(0);}
+  90% {opacity: 1;}
+  100% {opacity: 0; transform: translateY(-10px);}
+}
+
 .citazione-del-giorno {
   background-color: #f0f0f0;
   padding: clamp(1.5rem, 3vw, 3rem);
   border-radius: 1rem;
-  width: 80vw;       
-  max-height: 25vh;  /* compatta */
+  width: 80vw;
+  max-height: 25vh;
   overflow: hidden;
   box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,0.2);
   display: flex;
@@ -306,7 +351,6 @@ html, body {
   margin-top: 0.5rem;
 }
 
-/* BOTTONI PRINCIPALI */
 .bottoni {
   display: flex;
   flex-wrap: wrap;
@@ -332,7 +376,6 @@ html, body {
   transform: scale(1.05);
 }
 
-/* RICERCA */
 .input-ricerca {
   width: 100%;
   max-width: 600px;
@@ -344,13 +387,12 @@ html, body {
   box-sizing: border-box;
 }
 
-/* LISTA CITAZIONI */
 .elenco-citazioni {
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
   width: 80vw;
-  max-height: 50vh; 
+  max-height: 50vh;
   overflow-y: auto;
 }
 
@@ -359,14 +401,14 @@ html, body {
   justify-content: space-between;
   align-items: center;
   border: 1px solid #ddd;
-  padding: 0.8rem;
-  border-radius: 0.75rem;
+  padding: 0.7rem;
+  border-radius: 0.5rem;
   background-color: #fff;
-  box-shadow: 0 0.125rem 0.5rem rgba(0,0,0,0.05);
-  font-size: 0.95rem;
+  box-shadow: 0 0.130rem 0.5rem rgba(0,0,0,0.05);
+  font-size: 0.90rem;
+  
 }
 
-/* AZIONI CITAZIONI */
 .azioni button {
   margin-left: 0.5rem;
   border: none;
@@ -374,13 +416,14 @@ html, body {
   font-size: 1.25rem;
   cursor: pointer;
   transition: transform 0.1s;
+  padding-right: 50px;
 }
 
 .azioni button:hover {
-  transform: scale(1.2);
+  transform: scale(1.4);
+  
 }
 
-/* PAGINAZIONE */
 .paginazione {
   display: flex;
   justify-content: center;
@@ -388,6 +431,7 @@ html, body {
   gap: 0.8rem;
   width: 90vw;
   margin-top: 1rem;
+  
 }
 
 .paginazione button {
@@ -406,7 +450,6 @@ html, body {
   cursor: not-allowed;
 }
 
-/* FORM NUOVA CITAZIONE */
 .form-nuova-citazione {
   display: flex;
   flex-direction: column;
@@ -419,9 +462,7 @@ html, body {
   transition: transform 0.2s ease;
 }
 
-.form-nuova-citazione:hover {
-  transform: translateY(-2px);
-}
+.form-nuova-citazione:hover { transform: translateY(-2px); }
 
 .input-form {
   padding: 12px;
@@ -453,26 +494,19 @@ html, body {
   transform: translateY(-2px);
 }
 
-/* HIGHLIGHT */
-.highlight {
-  background-color: yellow;
-  font-weight: bold;
-}
+.highlight { background-color: yellow; font-weight: bold; }
 
-/* RESPONSIVE PICCOLI SCHERMI */
 @media(max-width: 1024px){
   .citazione-del-giorno { width: 90vw; max-height: 25vh; }
   .elenco-citazioni { width: 90vw; max-height: 45vh; }
 }
 
-/* BOTTONI PICCOLI E BELLI SU MOBILE */
 @media(max-width: 768px){
   .bottoni {
     flex-direction: column;
-    gap: 0.6rem;
+    gap: 0.5rem;
     width: 70%;
   }
-
   .bottoni button {
     padding: 0.45rem 0.9rem;
     font-size: 0.9rem;
@@ -480,6 +514,4 @@ html, body {
     box-sizing: border-box;
   }
 }
-
-
 </style>
