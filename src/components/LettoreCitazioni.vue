@@ -177,268 +177,241 @@ export default {
   }
 }
 </script>
-
 <template>
-  
-
   <div class="app-container">
+    <h1 class="titolo">Lettore di Citazioni</h1>
 
-    <div class="lettore-citazioni">
-    <h1 class="titolo-oro">Lettore di Citazioni</h1>
-
+    <!-- Messaggi di errore -->
     <div v-if="messaggioErrore" class="messaggio-errore">{{ messaggioErrore }}</div>
 
     <!-- Citazione casuale -->
-    <div class="citazione-del-giorno" v-if="citazioneCorrente">
-      <p class="testo-citazione" v-html="evidenziaTesto(citazioneCorrente.testo)"></p>
+    <div v-if="citazioneCorrente" class="citazione-del-giorno">
+      <p v-html="evidenziaTesto(citazioneCorrente.testo)" class="testo-citazione"></p>
       <p class="autore-citazione">{{ citazioneCorrente.autore }}</p>
     </div>
 
     <!-- Bottoni principali -->
-    <div class="contenitore-bottoni-principali">
-      <button class="bottone-principale" @click="selezionaCitazioneCasuale">Citazione Casuale</button>
-      <button class="bottone-principale" @click="toggleFormNuovaCitazione">
+    <div class="bottoni">
+      <button @click="selezionaCitazioneCasuale">Citazione Casuale</button>
+      <button @click="toggleFormNuovaCitazione">
         {{ mostraFormNuovaCitazione ? 'Nascondi Form' : 'Aggiungi Citazione' }}
       </button>
-      <button class="bottone-principale" @click="toggleMostraPreferiti">
+      <button @click="toggleMostraPreferiti">
         {{ mostraSoloPreferiti ? 'Mostra Tutte' : 'Mostra Preferiti' }}
       </button>
     </div>
 
     <!-- Form nuova citazione -->
     <form v-if="mostraFormNuovaCitazione" @submit.prevent class="form-nuova-citazione">
-      <input v-model="nuovaCitazione.testo" placeholder="Testo" class="input-nuova-citazione" />
-      <input v-model="nuovaCitazione.autore" placeholder="Autore" class="input-nuova-citazione" />
-      <button type="button" class="bottone-principale" @click="salvaNuovaCitazione">Salva</button>
+      <input v-model="nuovaCitazione.testo" placeholder="Testo" />
+      <input v-model="nuovaCitazione.autore" placeholder="Autore" />
+      <button type="button" @click="salvaNuovaCitazione">Salva</button>
     </form>
 
     <!-- Ricerca -->
-    <form @submit.prevent>
-      <input v-model="testoRicerca" placeholder="Cerca autore o citazione..." class="input-nuova-citazione" />
-    </form>
-    
+    <input v-model="testoRicerca" placeholder="Cerca autore o citazione..." class="input-ricerca" />
+
+    <!-- Lista citazioni -->
     <div v-if="isLoading" class="loading">Caricamento citazioni...</div>
-    <div v-else>
-      <!-- Elenco citazioni -->
-      <ul class="elenco-citazioni">
-        <li v-for="citazione in calcolaCitazioniPagina()" :key="citazione.id" class="citazione-item">
-          <div class="citazione-content">
-            <p v-html="evidenziaTesto(citazione.testo)" class="playfair-display"></p>
-            <p class="citazione-autore">- {{ citazione.autore }}</p>
-          </div>
-          <button type="button" class="bottone-secondario" @click="rimuoviCitazione(citazione)">🗑️</button>
-          <button type="button" class="bottone-principale" @click="togglePreferita(citazione)">
+    <ul v-else class="elenco-citazioni">
+      <li v-for="citazione in calcolaCitazioniPagina()" :key="citazione.id" class="citazione-item">
+        <div>
+          <p v-html="evidenziaTesto(citazione.testo)"></p>
+          <p class="autore-citazione">- {{ citazione.autore }}</p>
+        </div>
+        <div class="azioni">
+          <button @click="rimuoviCitazione(citazione)">🗑️</button>
+          <button @click="togglePreferita(citazione)">
             <span v-if="citazione.preferita">❤️</span>
             <span v-else>🤍</span>
           </button>
-        </li>
-      </ul>
+        </div>
+      </li>
+    </ul>
 
-      <!-- Paginazione -->
-      <div v-if="calcolaNumeroPagine() > 1" class="paginazione">
-        <button type="button" class="bottone-pagina" @click="paginaPrecedente" :disabled="paginaCorrente === 1">⬅️</button>
-        <span>Pagina {{ paginaCorrente }} di {{ calcolaNumeroPagine() }}</span>
-        <button type="button" class="bottone-pagina" @click="paginaSuccessiva" :disabled="paginaCorrente === calcolaNumeroPagine()">➡️</button>
-      </div>
+    <!-- Paginazione -->
+    <div v-if="calcolaNumeroPagine() > 1" class="paginazione">
+      <button @click="paginaPrecedente" :disabled="paginaCorrente === 1">⬅️</button>
+      <span>Pagina {{ paginaCorrente }} di {{ calcolaNumeroPagine() }}</span>
+      <button @click="paginaSuccessiva" :disabled="paginaCorrente === calcolaNumeroPagine()">➡️</button>
     </div>
-  </div>
-
-
-
-
   </div>
 </template>
 
-<style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
 
-.lettore-citazioni {
-  display: flex;
-  flex-direction: column;
-  align-items: center;        /* centra tutto orizzontalmente */
-  justify-content: flex-start; /* verticale in alto, cambia in center se vuoi centrare anche verticalmente */
-  width: 95%;
-  max-width: 1200px;
-  min-width: 320px;
+<style scoped>
+
+
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
+.app-container {
+  max-width: 800px;
   margin: 0 auto;
   padding: 20px;
-  font-family: Arial, sans-serif;
-  box-sizing: border-box;
+  font-family: 'Playfair Display', serif;
 }
 
-.loading {
+.titolo {
   text-align: center;
-  font-size: 1.4em;
-  margin-top: 20px;
-}
-
-.titolo-oro {
   color: #FFD700;
-  text-align: center;
+  font-size: 2em;
+  margin-bottom: 20px;
 }
 
-.citazione-del-giorno,
-.form-nuova-citazione,
-.elenco-citazioni,
-.contenitore-bottoni-principali {
-  width: 100%;
-  max-width: 800px;  /* contenuto centrato e non troppo largo */
+.messaggio-errore {
+  color: red;
+  text-align: center;
+  margin-bottom: 15px;
+  font-weight: bold;
 }
 
 .citazione-del-giorno {
   background-color: #f0f0f0;
-  padding: 20px;
-  border-radius: 8px;
-  margin-bottom: 20px;
+  padding: 25px;
+  border-radius: 10px;
+  margin-bottom: 25px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
 .testo-citazione {
   font-style: italic;
-  font-size: clamp(1.2em, 2vw, 1.6em); /* dimensione fluida */
-}
-
-.playfair-display {
-  font-family: "Playfair Display", serif;
-  font-optical-sizing: auto;
-  font-weight: 400;
-  font-style: normal;
-  font-size: clamp(1em, 1.5vw, 1.3em); /* dimensione fluida */
+  font-size: 1.2em;
+  color: #000;
+  margin-bottom: 10px;
 }
 
 .autore-citazione {
   text-align: right;
   font-weight: bold;
+  color: #367fa9;
 }
 
-.contenitore-bottoni-principali {
+.bottoni {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;    /* centra bottoni */
+  justify-content: center;
   gap: 10px;
   margin-bottom: 20px;
 }
 
-.bottone-principale,
-.bottone-secondario,
-.bottone-pagina {
-  padding: 10px 15px;
+.bottoni button {
+  padding: 10px 20px;
   border: none;
-  border-radius: 5px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 1em;
-}
-
-.bottone-principale {
   background-color: #4CAF50;
   color: white;
+  font-size: 1em;
+  transition: background-color 0.2s;
 }
 
-.bottone-principale:hover {
-  background-color: #467f49;
-}
-
-.bottone-secondario {
-  background-color: #f44336;
-  color: white;
-  margin-left: 20px;
-  margin-right: 10px;
-}
-
-.bottone-secondario:hover {
-  background-color: #c25353;
+.bottoni button:hover {
+  background-color: #35923a;
 }
 
 .form-nuova-citazione {
   background-color: #f9f9f9;
   padding: 20px;
-  border-radius: 8px;
+  border-radius: 10px;
   margin-bottom: 20px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
 }
 
-.input-nuova-citazione {
+.form-nuova-citazione input {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 1em;
+  box-sizing: border-box;
+}
+
+.form-nuova-citazione button {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  background-color: #008CBA;
+  color: white;
+  font-size: 1em;
+}
+
+.input-ricerca {
   width: 100%;
   padding: 10px;
-  margin-bottom: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  margin-bottom: 20px;
+  font-size: 1em;
+  box-sizing: border-box;
 }
 
 .elenco-citazioni {
-  list-style-type: none;
+  list-style: none;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;       /* centra citazioni */
-  gap: 10px;
+  margin: 0;
 }
 
 .citazione-item {
-  background-color: #fff;
-  border: 1px solid #ddd;
-  padding: 15px;
-  border-radius: 8px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  width: 100%;
-  max-width: 700px;
+  border: 1px solid #ddd;
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+  background-color: #ffffff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
 }
 
-.citazione-content {
-  flex-grow: 1;
-  text-align: left;
-}
-
-.citazione-testo {
+.azioni button {
+  margin-left: 8px;
+  cursor: pointer;
+  border: none;
+  background: none;
   font-size: 1.2em;
-  margin-bottom: 0.5em;
-  font-style: italic;
+  transition: transform 0.1s;
 }
 
-.citazione-autore {
-  font-size: 1.1em;
+.azioni button:hover {
+  transform: scale(1.2);
+}
+
+.paginazione {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  margin-top: 25px;
+}
+
+.paginazione button {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: none;
+  background-color: #4CAF50;
+  color: white;
+  cursor: pointer;
+  font-size: 1em;
+  transition: background-color 0.2s;
+}
+
+.paginazione button:disabled {
+  background-color: #a5d6a7;
+  cursor: not-allowed;
+}
+
+.paginazione span {
   font-weight: bold;
-  text-align: right;
-  color: #555;
+  font-size: 1em;
+  color: #ddd;
 }
 
 .highlight {
   background-color: yellow;
+  font-weight: bold;
 }
 
-.messaggio-errore {
-  color: red;
-  margin-bottom: 10px;
-  text-align: center;
-}
-
-.bottone-rimuovi {
-  background-color: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 0.2em 0.5em;
-  border-radius: 5px;
-  transition: background-color 0.3s;
-}
-
-.bottone-rimuovi:hover {
-  background-color: #ffebee;
-}
-
-
-
-  .appcontainer {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    background-color: #f5f5f5;
-    padding: 20px;
-    box-sizing: border-box;
-    position: relative; /* Added to maintain position in fullscreen */
-    left: 50%; /* Centering */
-    transform: translateX(-50%); /* Centering */
-  }
 
 </style>
-
